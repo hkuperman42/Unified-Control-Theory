@@ -1,1 +1,1 @@
-# unified-control-theory
+# Unified-Control-Theory
