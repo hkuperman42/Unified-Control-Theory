@@ -5,28 +5,27 @@ Things to consider/check:
 - Is there a faster ordering of axis?
 - Is this usable with a GPU?
 - Are the particle weights the average per particle over the cost-likelihood function?
-- Should I be staying in log-world for longer
+- Should I be staying in log-world for longer or generally rescaling things at all?
 """
 
 """
 TODO:
 - Implement update_particles() lmao
+- Enable dimension scaling for adaptive numParticles
 - Add support for different covariances for each particles
-- Enable alternate real-control sampling methods in equation (24)
+- Enable alternate action selection methods 
 """
 
 
 class SteinMPC:
     def __init__(
         self,
-        means,
         cov,
         num_particles,
         num_samples_per_particle,
         cost_likelihood_funct,
         dynamics,
     ) -> None:
-        self.means = means
         self.cov = cov
         self.cost_likelihood_funct = cost_likelihood_funct
         self.num_particles = num_particles
@@ -93,4 +92,28 @@ class SteinMPC:
 
     def update_particles(self):
         # Do something here
+        # Also remember to recede the horizon
         return 0
+
+    def setup_run(self, initial_particle_means):
+        self.means = initial_particle_means
+
+    def step_forward(self, real_state, time_horizon):
+        self.state = real_state
+        self.time_horizon = time_horizon
+
+        samples = self.sample_particles()
+        states, costs = self.simulate_samples(samples)
+        particle_weights, cost_weights = self.apply_cost_likelihood(costs)
+
+        # Use equation (24) to pick select an action
+        best_particle = np.argmax(particle_weights)
+        best_particle_states = states[best_particle, :, 0, :]
+        best_particle_weights = cost_weights[best_particle, :]
+
+        best_particle_weights /= np.sum(best_particle_weights)
+        control = np.sum(best_particle_states * best_particle_weights)
+
+        self.update_particles()
+
+        return control
